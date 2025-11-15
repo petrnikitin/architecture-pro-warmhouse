@@ -1,0 +1,400 @@
+openapi: 3.0.3
+info:
+  title: Telemetry Service API
+  description: |
+    REST API для работы с телеметрией IoT устройств.
+    Предоставляет возможности для получения данных с датчиков, метрик и аналитики.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8082/api/v1
+    description: Development server
+  - url: https://api.warmhouse.com/telemetry/v1
+    description: Production server
+
+tags:
+  - name: Telemetry
+    description: Работа с телеметрическими данными
+  - name: Metrics
+    description: Агрегированные метрики и аналитика
+
+paths:
+  /telemetry:
+    get:
+      tags:
+        - Telemetry
+      summary: Получить телеметрические данные
+      description: Возвращает телеметрические данные с фильтрацией по устройству, времени и типу датчика
+      operationId: getTelemetry
+      parameters:
+        - name: deviceId
+          in: query
+          required: true
+          description: ID устройства
+          schema:
+            type: string
+            format: uuid
+        - name: sensorType
+          in: query
+          description: Тип датчика
+          schema:
+            type: string
+            enum: [TEMPERATURE, HUMIDITY, PRESSURE, MOTION, LIGHT, POWER]
+        - name: from
+          in: query
+          description: Начало временного интервала (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-01-01T00:00:00Z"
+        - name: to
+          in: query
+          description: Конец временного интервала (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-01-31T23:59:59Z"
+        - name: limit
+          in: query
+          description: Максимальное количество записей
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    post:
+      tags:
+        - Telemetry
+      summary: Записать телеметрические данные
+      description: Записывает новые данные телеметрии от устройства
+      operationId: createTelemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTelemetryRequest'
+      responses:
+        '201':
+          description: Данные успешно записаны
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+  /telemetry/latest:
+    get:
+      tags:
+        - Telemetry
+      summary: Получить последние показания
+      description: Возвращает последние показания для каждого типа датчика устройства
+      operationId: getLatestTelemetry
+      parameters:
+        - name: deviceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+  /metrics/aggregated:
+    get:
+      tags:
+        - Metrics
+      summary: Получить агрегированные метрики
+      description: Возвращает агрегированные метрики (среднее, мин, макс) за указанный период
+      operationId: getAggregatedMetrics
+      parameters:
+        - name: deviceId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sensorType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [TEMPERATURE, HUMIDITY, PRESSURE, MOTION, LIGHT, POWER]
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: aggregation
+          in: query
+          description: Интервал агрегации
+          schema:
+            type: string
+            enum: [HOUR, DAY, WEEK, MONTH]
+            default: DAY
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AggregatedMetricsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+  /metrics/house/{houseId}/summary:
+    get:
+      tags:
+        - Metrics
+      summary: Сводка метрик по дому
+      description: Возвращает сводную информацию по всем датчикам в доме
+      operationId: getHouseSummary
+      parameters:
+        - name: houseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseSummaryResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+components:
+  schemas:
+    TelemetryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        sensorType:
+          type: string
+          enum: [TEMPERATURE, HUMIDITY, PRESSURE, MOTION, LIGHT, POWER]
+        value:
+          type: number
+          format: double
+        unit:
+          type: string
+          example: "°C"
+        quality:
+          type: string
+          enum: [GOOD, POOR, BAD]
+        timestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    CreateTelemetryRequest:
+      type: object
+      required:
+        - deviceId
+        - sensorType
+        - value
+        - unit
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        sensorType:
+          type: string
+          enum: [TEMPERATURE, HUMIDITY, PRESSURE, MOTION, LIGHT, POWER]
+        value:
+          type: number
+          format: double
+        unit:
+          type: string
+        quality:
+          type: string
+          enum: [GOOD, POOR, BAD]
+          default: GOOD
+        metadata:
+          type: object
+          additionalProperties: true
+
+    TelemetryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelemetryResponse'
+        count:
+          type: integer
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+
+    AggregatedMetricsResponse:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        sensorType:
+          type: string
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        aggregation:
+          type: string
+        dataPoints:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              average:
+                type: number
+              minimum:
+                type: number
+              maximum:
+                type: number
+              count:
+                type: integer
+
+    HouseSummaryResponse:
+      type: object
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        summary:
+          type: object
+          properties:
+            averageTemperature:
+              type: number
+            averageHumidity:
+              type: number
+            totalPowerConsumption:
+              type: number
+            activeDevices:
+              type: integer
+            lastUpdated:
+              type: string
+              format: date-time
+        rooms:
+          type: array
+          items:
+            type: object
+            properties:
+              roomId:
+                type: string
+                format: uuid
+              roomName:
+                type: string
+              temperature:
+                type: number
+              humidity:
+                type: number
+              lastUpdated:
+                type: string
+                format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

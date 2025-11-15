@@ -1,0 +1,91 @@
+@startuml
+title Spring Boot микросервисная архитектура - ключевые компоненты
+
+package "Spring Cloud Infrastructure" {
+    [Eureka Server] as eureka
+    [Spring Cloud Gateway] as gateway
+    [Config Server] as config
+    [Zipkin Tracing] as zipkin
+}
+
+package "Device Management Service" {
+    [DeviceController] as device_api
+    [DeviceService] as device_service  
+    [DeviceRepository] as device_repo
+    [ApplicationEventPublisher] as device_events
+    [WebFlux] as device_webflux
+}
+
+package "Telemetry Service" {
+    [TelemetryController] as telemetry_api
+    [DataProcessor] as telemetry_processor
+    [KafkaListener] as telemetry_kafka
+    [TimeSeriesRepository] as telemetry_repo
+    [WebFlux] as telemetry_webflux
+}
+
+package "Heating Control Service" {
+    [HeatingController] as heating_api
+    [HeatingService] as heating_service
+    [ScheduledTasks] as heating_schedule
+    [MongoRepository] as heating_repo
+    [EventListener] as heating_events
+}
+
+package "Common Spring Components" {
+    [Spring Security] as security
+    [Spring Data] as data
+    [Spring Boot Actuator] as actuator
+    [Spring Cloud Stream] as stream
+    [Micrometer Metrics] as metrics
+}
+
+eureka --> gateway : Service Discovery
+config --> device_service : Configuration
+config --> telemetry_processor : Configuration  
+config --> heating_service : Configuration
+
+gateway --> device_api : Route
+gateway --> telemetry_api : Route
+gateway --> heating_api : Route
+
+device_webflux --> device_api : Reactive Endpoints
+telemetry_webflux --> telemetry_api : Reactive Endpoints
+
+security --> device_api : Authentication
+security --> telemetry_api : Authentication  
+security --> heating_api : Authentication
+
+data --> device_repo : JPA Abstraction
+data --> telemetry_repo : JPA Abstraction
+data --> heating_repo : MongoDB Abstraction
+
+actuator --> device_service : Health Checks
+actuator --> telemetry_processor : Health Checks
+actuator --> heating_service : Health Checks
+
+metrics --> zipkin : Distributed Tracing
+stream --> telemetry_kafka : Kafka Integration
+
+note top of gateway
+Spring Cloud Gateway
+- Routing
+- Rate Limiting  
+- Circuit Breaker
+end note
+
+note right of security
+Spring Security
+- JWT Authentication
+- Method Level Security
+- OAuth2 Resource Server
+end note
+
+note bottom of data
+Spring Data
+- Auto Repositories
+- Query Methods
+- Transaction Management
+end note
+
+@enduml

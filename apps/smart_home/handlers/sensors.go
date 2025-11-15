@@ -6,25 +6,30 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"smarthome/db"
+	"smarthome/kafka"
 	"smarthome/models"
 	"smarthome/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // SensorHandler handles sensor-related requests
 type SensorHandler struct {
 	DB                 *db.DB
 	TemperatureService *services.TemperatureService
+	KafkaProducer      *kafka.Producer
 }
 
 // NewSensorHandler creates a new SensorHandler
-func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService) *SensorHandler {
+func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService, kafkaProducer *kafka.Producer) *SensorHandler {
 	return &SensorHandler{
 		DB:                 db,
 		TemperatureService: temperatureService,
+		KafkaProducer:      kafkaProducer,
 	}
 }
 
@@ -203,10 +208,36 @@ func (h *SensorHandler) UpdateSensorValue(c *gin.Context) {
 		return
 	}
 
+	// Get sensor info for telemetry event
+	sensor, err := h.DB.GetSensorByID(context.Background(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Sensor not found"})
+		return
+	}
+
 	err = h.DB.UpdateSensorValue(context.Background(), id, request.Value, request.Status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Send telemetry event to Kafka
+	if h.KafkaProducer != nil {
+		event := kafka.TelemetryEvent{
+			EventID:    uuid.New().String(),
+			DeviceID:   fmt.Sprintf("%d", sensor.ID),
+			SensorType: string(sensor.Type),
+			Value:      request.Value,
+			Unit:       "°C", // Default unit, можно расширить
+			Quality:    "GOOD",
+			Timestamp:  time.Now(),
+		}
+
+		go func() {
+			if err := h.KafkaProducer.SendTelemetryEvent(context.Background(), event); err != nil {
+				log.Printf("Failed to send telemetry event to Kafka: %v", err)
+			}
+		}()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor value updated successfully"})

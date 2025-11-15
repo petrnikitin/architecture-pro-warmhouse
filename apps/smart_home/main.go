@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"smarthome/db"
 	"smarthome/handlers"
+	"smarthome/kafka"
 	"smarthome/services"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +34,13 @@ func main() {
 	temperatureService := services.NewTemperatureService(temperatureAPIURL)
 	log.Printf("Temperature service initialized with API URL: %s\n", temperatureAPIURL)
 
+	// Initialize Kafka producer
+	kafkaBrokers := getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+	brokerList := strings.Split(kafkaBrokers, ",")
+	kafkaProducer := kafka.NewProducer(brokerList)
+	defer kafkaProducer.Close()
+	log.Printf("Kafka producer initialized with brokers: %v\n", brokerList)
+
 	// Initialize router
 	router := gin.Default()
 
@@ -46,7 +55,7 @@ func main() {
 	apiRoutes := router.Group("/api/v1")
 
 	// Register sensor routes
-	sensorHandler := handlers.NewSensorHandler(database, temperatureService)
+	sensorHandler := handlers.NewSensorHandler(database, temperatureService, kafkaProducer)
 	sensorHandler.RegisterRoutes(apiRoutes)
 
 	// Start server

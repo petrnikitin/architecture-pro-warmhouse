@@ -1,0 +1,420 @@
+asyncapi: 3.0.0
+info:
+  title: Smart Village Events API
+  version: 1.0.0
+  description: |
+    Асинхронные события между микросервисами экосистемы "Тёплый дом".
+    Используется Apache Kafka для обмена событиями.
+
+servers:
+  development:
+    host: localhost:9092
+    protocol: kafka
+    description: Development Kafka broker
+  production:
+    host: kafka.warmhouse.com:9092
+    protocol: kafka
+    description: Production Kafka broker
+
+channels:
+  device.events:
+    address: device.events
+    description: События изменения состояния устройств
+    messages:
+      deviceStateChanged:
+        $ref: '#/components/messages/DeviceStateChangedEvent'
+      deviceConnected:
+        $ref: '#/components/messages/DeviceConnectedEvent'
+      deviceDisconnected:
+        $ref: '#/components/messages/DeviceDisconnectedEvent'
+
+  telemetry.data:
+    address: telemetry.data
+    description: Поток телеметрических данных от устройств
+    messages:
+      telemetryReceived:
+        $ref: '#/components/messages/TelemetryDataEvent'
+
+  telemetry.alerts:
+    address: telemetry.alerts
+    description: Алерты и предупреждения от системы мониторинга
+    messages:
+      alertTriggered:
+        $ref: '#/components/messages/AlertTriggeredEvent'
+
+  heating.commands:
+    address: heating.commands
+    description: Команды управления отоплением
+    messages:
+      temperatureSet:
+        $ref: '#/components/messages/TemperatureSetEvent'
+      modeChanged:
+        $ref: '#/components/messages/HeatingModeChangedEvent'
+
+  notifications.outbox:
+    address: notifications.outbox
+    description: События для отправки уведомлений пользователям
+    messages:
+      notificationRequested:
+        $ref: '#/components/messages/NotificationRequestedEvent'
+
+operations:
+  publishDeviceStateChanged:
+    action: send
+    channel:
+      $ref: '#/channels/device.events'
+    summary: Публикация события изменения состояния устройства
+    description: Device Management Service публикует это событие при изменении состояния устройства
+    messages:
+      - $ref: '#/channels/device.events/messages/deviceStateChanged'
+
+  subscribeToDeviceEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/device.events'
+    summary: Подписка на события устройств
+    description: Telemetry Service и Notification Service подписываются на эти события
+
+  publishTelemetryData:
+    action: send
+    channel:
+      $ref: '#/channels/telemetry.data'
+    summary: Публикация телеметрических данных
+    description: Telemetry Service публикует обработанные данные телеметрии
+    messages:
+      - $ref: '#/channels/telemetry.data/messages/telemetryReceived'
+
+  subscribeToTelemetryData:
+    action: receive
+    channel:
+      $ref: '#/channels/telemetry.data'
+    summary: Подписка на телеметрию
+    description: Heating Control Service подписывается для принятия решений об управлении
+
+  publishAlert:
+    action: send
+    channel:
+      $ref: '#/channels/telemetry.alerts'
+    summary: Публикация алерта
+    description: Telemetry Service публикует алерты при превышении пороговых значений
+    messages:
+      - $ref: '#/channels/telemetry.alerts/messages/alertTriggered'
+
+  subscribeToAlerts:
+    action: receive
+    channel:
+      $ref: '#/channels/telemetry.alerts'
+    summary: Подписка на алерты
+    description: Notification Service подписывается для отправки уведомлений
+
+components:
+  messages:
+    DeviceStateChangedEvent:
+      name: DeviceStateChanged
+      title: Событие изменения состояния устройства
+      summary: Устройство изменило свое состояние
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DeviceStateChangedPayload'
+
+    DeviceConnectedEvent:
+      name: DeviceConnected
+      title: Событие подключения устройства
+      summary: Устройство подключилось к системе
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DeviceConnectedPayload'
+
+    DeviceDisconnectedEvent:
+      name: DeviceDisconnected
+      title: Событие отключения устройства
+      summary: Устройство отключилось от системы
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DeviceDisconnectedPayload'
+
+    TelemetryDataEvent:
+      name: TelemetryDataReceived
+      title: Событие получения телеметрии
+      summary: Получены новые данные телеметрии
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TelemetryDataPayload'
+
+    AlertTriggeredEvent:
+      name: AlertTriggered
+      title: Событие срабатывания алерта
+      summary: Сработало правило алерта
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/AlertTriggeredPayload'
+
+    TemperatureSetEvent:
+      name: TemperatureSet
+      title: Событие установки температуры
+      summary: Установлена целевая температура
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TemperatureSetPayload'
+
+    HeatingModeChangedEvent:
+      name: HeatingModeChanged
+      title: Событие изменения режима отопления
+      summary: Изменен режим работы системы отопления
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/HeatingModeChangedPayload'
+
+    NotificationRequestedEvent:
+      name: NotificationRequested
+      title: Запрос на отправку уведомления
+      summary: Запрошена отправка уведомления пользователю
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/NotificationRequestedPayload'
+
+  schemas:
+    DeviceStateChangedPayload:
+      type: object
+      required:
+        - eventId
+        - deviceId
+        - previousState
+        - newState
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Уникальный идентификатор события
+        deviceId:
+          type: string
+          format: uuid
+          description: ID устройства
+        deviceType:
+          type: string
+          enum: [HEATING, LIGHTING, SECURITY, SENSOR]
+        previousState:
+          type: object
+          description: Предыдущее состояние устройства
+        newState:
+          type: object
+          description: Новое состояние устройства
+        changedBy:
+          type: string
+          format: uuid
+          description: ID пользователя, инициировавшего изменение
+        timestamp:
+          type: string
+          format: date-time
+
+    DeviceConnectedPayload:
+      type: object
+      required:
+        - eventId
+        - deviceId
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        deviceType:
+          type: string
+        ipAddress:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DeviceDisconnectedPayload:
+      type: object
+      required:
+        - eventId
+        - deviceId
+        - reason
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [TIMEOUT, ERROR, MANUAL, POWER_OFF]
+        timestamp:
+          type: string
+          format: date-time
+
+    TelemetryDataPayload:
+      type: object
+      required:
+        - eventId
+        - deviceId
+        - sensorType
+        - value
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        sensorType:
+          type: string
+          enum: [TEMPERATURE, HUMIDITY, PRESSURE, MOTION, LIGHT, POWER]
+        value:
+          type: number
+        unit:
+          type: string
+        quality:
+          type: string
+          enum: [GOOD, POOR, BAD]
+        roomId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    AlertTriggeredPayload:
+      type: object
+      required:
+        - alertId
+        - deviceId
+        - severity
+        - message
+        - timestamp
+      properties:
+        alertId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        alertType:
+          type: string
+          enum: [THRESHOLD_EXCEEDED, DEVICE_OFFLINE, ANOMALY_DETECTED, CRITICAL_ERROR]
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        message:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    TemperatureSetPayload:
+      type: object
+      required:
+        - eventId
+        - roomId
+        - targetTemperature
+        - setBy
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        targetTemperature:
+          type: number
+          format: float
+        setBy:
+          type: string
+          format: uuid
+          description: ID пользователя или сценария
+        source:
+          type: string
+          enum: [MANUAL, SCHEDULE, SCENARIO]
+        timestamp:
+          type: string
+          format: date-time
+
+    HeatingModeChangedPayload:
+      type: object
+      required:
+        - eventId
+        - houseId
+        - previousMode
+        - newMode
+        - timestamp
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        previousMode:
+          type: string
+          enum: [AUTO, MANUAL, ECO, AWAY, COMFORT]
+        newMode:
+          type: string
+          enum: [AUTO, MANUAL, ECO, AWAY, COMFORT]
+        changedBy:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+
+    NotificationRequestedPayload:
+      type: object
+      required:
+        - notificationId
+        - userId
+        - type
+        - message
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [ALERT, WARNING, INFO, MAINTENANCE]
+        title:
+          type: string
+        message:
+          type: string
+        deliveryMethod:
+          type: array
+          items:
+            type: string
+            enum: [PUSH, EMAIL, SMS]
+        relatedDeviceId:
+          type: string
+          format: uuid
+        relatedHouseId:
+          type: string
+          format: uuid
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, URGENT]
+        timestamp:
+          type: string
+          format: date-time

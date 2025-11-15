@@ -1,0 +1,206 @@
+@startuml
+!theme plain
+title ER-диаграмма экосистемы "Тёплый дом"
+
+' Основные сущности
+entity "User" {
+  * id : UUID <<PK>>
+  --
+  * username : VARCHAR(50)
+  * email : VARCHAR(100)
+  * password_hash : VARCHAR(255)
+  * first_name : VARCHAR(50)
+  * last_name : VARCHAR(50)
+  * phone : VARCHAR(20)
+  * role : ENUM('ADMIN', 'OWNER', 'GUEST')
+  * status : ENUM('ACTIVE', 'INACTIVE', 'BLOCKED')
+  * created_at : TIMESTAMP
+  * updated_at : TIMESTAMP
+}
+
+entity "House" {
+  * id : UUID <<PK>>
+  --
+  * owner_id : UUID <<FK>>
+  * name : VARCHAR(100)
+  * address : VARCHAR(255)
+  * city : VARCHAR(100)
+  * postal_code : VARCHAR(20)
+  * timezone : VARCHAR(50)
+  * area_sqm : DECIMAL(8,2)
+  * status : ENUM('ACTIVE', 'INACTIVE')
+  * created_at : TIMESTAMP
+  * updated_at : TIMESTAMP
+}
+
+entity "Room" {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  * name : VARCHAR(100)
+  * type : ENUM('LIVING_ROOM', 'BEDROOM', 'KITCHEN', 'BATHROOM', 'GARAGE')
+  * area_sqm : DECIMAL(6,2)
+  * floor : INTEGER
+  * description : TEXT
+  * created_at : TIMESTAMP
+}
+
+entity "DeviceType" {
+  * id : UUID <<PK>>
+  --
+  * name : VARCHAR(50)
+  * category : ENUM('HEATING', 'LIGHTING', 'SECURITY', 'SENSOR', 'CLIMATE')
+  * manufacturer : VARCHAR(100)
+  * model : VARCHAR(100)
+  * description : TEXT
+  * protocol : ENUM('MQTT', 'COAP', 'HTTP', 'ZIGBEE', 'WIFI')
+  * power_consumption : DECIMAL(6,2)
+  * created_at : TIMESTAMP
+}
+
+entity "Device" {
+  * id : UUID <<PK>>
+  --
+  * device_type_id : UUID <<FK>>
+  * house_id : UUID <<FK>>
+  * room_id : UUID <<FK>>
+  * serial_number : VARCHAR(100)
+  * name : VARCHAR(100)
+  * mac_address : VARCHAR(17)
+  * ip_address : VARCHAR(15)
+  * firmware_version : VARCHAR(20)
+  * status : ENUM('ONLINE', 'OFFLINE', 'ERROR', 'MAINTENANCE')
+  * connection_status : ENUM('CONNECTED', 'DISCONNECTED', 'PAIRING')
+  * last_seen : TIMESTAMP
+  * battery_level : INTEGER
+  * created_at : TIMESTAMP
+  * updated_at : TIMESTAMP
+}
+
+entity "DeviceState" {
+  * id : UUID <<PK>>
+  --
+  * device_id : UUID <<FK>>
+  * property_name : VARCHAR(50)
+  * property_value : JSON
+  * previous_value : JSON
+  * changed_at : TIMESTAMP
+  * changed_by : UUID <<FK>>
+}
+
+entity "TelemetryData" {
+  * id : UUID <<PK>>
+  --
+  * device_id : UUID <<FK>>
+  * sensor_type : ENUM('TEMPERATURE', 'HUMIDITY', 'PRESSURE', 'MOTION', 'LIGHT', 'POWER')
+  * value : DECIMAL(10,4)
+  * unit : VARCHAR(10)
+  * quality : ENUM('GOOD', 'POOR', 'BAD')
+  * timestamp : TIMESTAMP
+  * metadata : JSON
+}
+
+entity "HeatingSchedule" {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  * room_id : UUID <<FK>>
+  * device_id : UUID <<FK>>
+  * name : VARCHAR(100)
+  * target_temperature : DECIMAL(4,1)
+  * day_of_week : INTEGER
+  * start_time : TIME
+  * end_time : TIME
+  * is_active : BOOLEAN
+  * created_by : UUID <<FK>>
+  * created_at : TIMESTAMP
+  * updated_at : TIMESTAMP
+}
+
+entity "Scenario" {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  * name : VARCHAR(100)
+  * description : TEXT
+  * trigger_type : ENUM('MANUAL', 'SCHEDULED', 'SENSOR', 'GEOFENCE')
+  * trigger_conditions : JSON
+  * actions : JSON
+  * is_active : BOOLEAN
+  * created_by : UUID <<FK>>
+  * created_at : TIMESTAMP
+  * updated_at : TIMESTAMP
+}
+
+entity "SecurityEvent" {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  * device_id : UUID <<FK>>
+  * event_type : ENUM('DOOR_OPEN', 'DOOR_CLOSE', 'MOTION_DETECTED', 'ALARM_TRIGGERED')
+  * severity : ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+  * description : TEXT
+  * metadata : JSON
+  * timestamp : TIMESTAMP
+  * resolved_at : TIMESTAMP
+  * resolved_by : UUID <<FK>>
+}
+
+entity "Notification" {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * house_id : UUID <<FK>>
+  * device_id : UUID <<FK>>
+  * type : ENUM('ALERT', 'WARNING', 'INFO', 'MAINTENANCE')
+  * title : VARCHAR(200)
+  * message : TEXT
+  * delivery_method : ENUM('PUSH', 'EMAIL', 'SMS')
+  * status : ENUM('PENDING', 'SENT', 'DELIVERED', 'FAILED')
+  * sent_at : TIMESTAMP
+  * read_at : TIMESTAMP
+  * created_at : TIMESTAMP
+}
+
+entity "UserHouse" {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * house_id : UUID <<FK>>
+  * role : ENUM('OWNER', 'ADMIN', 'RESIDENT', 'GUEST')
+  * permissions : JSON
+  * invited_by : UUID <<FK>>
+  * invited_at : TIMESTAMP
+  * accepted_at : TIMESTAMP
+  * is_active : BOOLEAN
+}
+
+' Связи между сущностями
+User ||--o{ House : "owns"
+User ||--o{ UserHouse : "has access to"
+House ||--o{ UserHouse : "shared with"
+House ||--o{ Room : "contains"
+House ||--o{ Device : "has"
+House ||--o{ HeatingSchedule : "configured for"
+House ||--o{ Scenario : "has"
+House ||--o{ SecurityEvent : "generates"
+House ||--o{ Notification : "related to"
+
+Room ||--o{ Device : "located in"
+Room ||--o{ HeatingSchedule : "applies to"
+
+DeviceType ||--o{ Device : "defines"
+
+Device ||--o{ DeviceState : "has states"
+Device ||--o{ TelemetryData : "generates"
+Device ||--o{ HeatingSchedule : "controlled by"
+Device ||--o{ SecurityEvent : "triggers"
+Device ||--o{ Notification : "source of"
+
+User ||--o{ DeviceState : "changes"
+User ||--o{ HeatingSchedule : "creates"
+User ||--o{ Scenario : "creates"
+User ||--o{ SecurityEvent : "resolves"
+User ||--o{ Notification : "receives"
+
+@enduml
