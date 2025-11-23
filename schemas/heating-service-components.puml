@@ -1,0 +1,55 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Компоненты микросервиса "Heating Control Service"
+
+Container_Boundary(heating_service, "Heating Control Service") {
+    Component(heating_api, "@RestController", "Spring MVC", "REST API для управления отоплением")
+    Component(heating_controller, "@Service HeatingController", "Spring Service", "Основная бизнес-логика с @Transactional")
+    Component(schedule_manager, "@Component ScheduleManager", "Spring Scheduling", "Управление расписанием с @Scheduled")
+    Component(scenario_engine, "@Component ScenarioEngine", "Spring Expression Language", "Выполнение сценариев с SpEL")
+    Component(temperature_analyzer, "@Service Analyzer", "Spring Boot", "Анализ данных с Spring Data")
+    Component(heating_optimizer, "@Component Optimizer", "Spring Boot", "Оптимизация с алгоритмами машинного обучения")
+    Component(heating_repository, "MongoRepository<Heating>", "Spring Data MongoDB", "Доступ к настройкам отопления")
+    Component(event_handler, "@EventListener", "Spring Events", "Обработка событий телеметрии")
+}
+
+ContainerDb(heating_db, "Heating Database", "MongoDB", "Настройки и сценарии отопления")
+Container(redis_cache, "Redis Cache", "Redis", "Кэширование текущих настроек")
+ContainerQueue(message_broker, "Message Broker", "Apache Kafka", "Обмен событиями с другими сервисами")
+System_Ext(heating_devices, "Heating Devices", "Реле отопления, термостаты")
+
+' Внешние взаимодействия
+Rel(heating_api, heating_controller, "Передает команды управления", "Sync")
+Rel(heating_api, schedule_manager, "Управляет расписанием", "Sync")
+Rel(heating_api, scenario_engine, "Управляет сценариями", "Sync")
+
+' Основная логика управления
+Rel(heating_controller, temperature_analyzer, "Анализирует температуру", "Sync")
+Rel(heating_controller, heating_optimizer, "Оптимизирует работу", "Sync")
+Rel(heating_controller, heating_repository, "Получает настройки", "Sync")
+
+' Работа со сценариями и расписанием
+Rel(schedule_manager, scenario_engine, "Запускает сценарии по расписанию", "Event")
+Rel(scenario_engine, heating_controller, "Выполняет команды сценария", "Command")
+
+' Обработка событий
+Rel(event_handler, temperature_analyzer, "Передает данные температуры", "Event")
+Rel(event_handler, heating_controller, "Уведомляет об изменениях", "Event")
+
+' Оптимизация и аналитика
+Rel(temperature_analyzer, heating_optimizer, "Передает аналитику", "Data")
+Rel(heating_optimizer, heating_controller, "Предлагает оптимизации", "Recommendations")
+
+' Кэширование
+Rel(heating_controller, redis_cache, "Кэширует состояние", "Sync")
+Rel(schedule_manager, redis_cache, "Кэширует расписание", "Sync")
+
+' Подключения к внешним системам
+Rel(heating_repository, heating_db, "Читает/записывает настройки", "MongoDB Protocol")
+Rel(event_handler, message_broker, "Слушает события телеметрии", "Kafka")
+Rel(heating_controller, message_broker, "Публикует события управления", "Kafka")
+Rel(heating_controller, heating_devices, "Отправляет команды", "MQTT/CoAP")
+
+SHOW_LEGEND()
+@enduml

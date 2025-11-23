@@ -1,0 +1,168 @@
+@startuml
+title Диаграмма классов: Обработка телеметрии (критический компонент)
+
+class TelemetryProcessor {
+    -dataValidator: DataValidator
+    -metricsCalculator: MetricsCalculator
+    -alertEngine: AlertEngine
+    -repository: TimeSeriesRepository
+    -cache: RedisCache
+    
+    +processRawData(sensorData: SensorData): ProcessedData
+    +aggregateMetrics(timeRange: TimeRange): AggregatedMetrics
+    +checkAlerts(metrics: ProcessedData): List<Alert>
+    -validateData(data: SensorData): ValidationResult
+    -calculateDerivedMetrics(data: ProcessedData): DerivedMetrics
+}
+
+class SensorData {
+    +deviceId: String
+    +timestamp: Timestamp
+    +value: Double
+    +unit: String
+    +location: String
+    +sensorType: SensorType
+    
+    +isValid(): Boolean
+    +getAge(): Duration
+}
+
+enum SensorType {
+    TEMPERATURE
+    HUMIDITY
+    PRESSURE
+    MOTION
+    LIGHT
+}
+
+class ProcessedData {
+    +originalData: SensorData
+    +normalizedValue: Double
+    +qualityScore: Double
+    +derivedMetrics: Map<String, Double>
+    +processedAt: Timestamp
+    
+    +addDerivedMetric(name: String, value: Double)
+    +getQualityLevel(): QualityLevel
+}
+
+enum QualityLevel {
+    HIGH
+    MEDIUM
+    LOW
+    INVALID
+}
+
+class DataValidator {
+    -validationRules: List<ValidationRule>
+    
+    +validate(data: SensorData): ValidationResult
+    +addRule(rule: ValidationRule)
+    -checkBounds(value: Double, type: SensorType): Boolean
+    -checkTimestamp(timestamp: Timestamp): Boolean
+}
+
+class ValidationResult {
+    +isValid: Boolean
+    +errorMessages: List<String>
+    +warningMessages: List<String>
+    +qualityScore: Double
+}
+
+abstract class ValidationRule {
+    +abstract validate(data: SensorData): ValidationResult
+}
+
+class RangeValidationRule extends ValidationRule {
+    -minValue: Double
+    -maxValue: Double
+    +validate(data: SensorData): ValidationResult
+}
+
+class TimestampValidationRule extends ValidationRule {
+    -maxAge: Duration
+    +validate(data: SensorData): ValidationResult
+}
+
+class MetricsCalculator {
+    +calculateAverage(data: List<ProcessedData>): Double
+    +calculateTrend(data: List<ProcessedData>): TrendDirection
+    +calculateDeviation(data: List<ProcessedData>): Double
+    +detectAnomalies(data: List<ProcessedData>): List<Anomaly>
+}
+
+enum TrendDirection {
+    RISING
+    FALLING
+    STABLE
+}
+
+class AlertEngine {
+    -alertRules: List<AlertRule>
+    -notificationService: NotificationService
+    
+    +checkAlerts(data: ProcessedData): List<Alert>
+    +addRule(rule: AlertRule)
+    -evaluateRule(rule: AlertRule, data: ProcessedData): Alert
+}
+
+class Alert {
+    +id: String
+    +severity: AlertSeverity
+    +message: String
+    +deviceId: String
+    +triggeredAt: Timestamp
+    +rule: AlertRule
+}
+
+enum AlertSeverity {
+    CRITICAL
+    WARNING
+    INFO
+}
+
+abstract class AlertRule {
+    +name: String
+    +severity: AlertSeverity
+    +abstract evaluate(data: ProcessedData): Boolean
+    +abstract getMessage(data: ProcessedData): String
+}
+
+class ThresholdAlertRule extends AlertRule {
+    -threshold: Double
+    -operator: ComparisonOperator
+    +evaluate(data: ProcessedData): Boolean
+    +getMessage(data: ProcessedData): String
+}
+
+enum ComparisonOperator {
+    GREATER_THAN
+    LESS_THAN
+    EQUALS
+}
+
+' Relationships
+TelemetryProcessor --> DataValidator : uses
+TelemetryProcessor --> MetricsCalculator : uses
+TelemetryProcessor --> AlertEngine : uses
+TelemetryProcessor --> ProcessedData : creates
+
+SensorData --> SensorType : has
+ProcessedData --> SensorData : contains
+ProcessedData --> QualityLevel : has
+
+DataValidator --> ValidationRule : uses
+DataValidator --> ValidationResult : creates
+ValidationResult --> ProcessedData : influences
+
+AlertEngine --> AlertRule : uses
+AlertEngine --> Alert : creates
+Alert --> AlertSeverity : has
+Alert --> AlertRule : triggered by
+
+RangeValidationRule --|> ValidationRule
+TimestampValidationRule --|> ValidationRule
+ThresholdAlertRule --|> AlertRule
+ThresholdAlertRule --> ComparisonOperator : uses
+
+@enduml

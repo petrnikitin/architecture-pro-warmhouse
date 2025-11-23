@@ -1,0 +1,44 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Компоненты микросервиса "Device Management Service"
+
+Container_Boundary(device_service, "Device Management Service") {
+    Component(device_api, "@RestController", "Spring MVC", "REST API для управления устройствами")
+    Component(device_command_handler, "@Component CommandHandler", "Spring Bean", "Обработка команд с @Transactional")
+    Component(device_state_manager, "@Service StateManager", "Spring Service", "Управление состоянием через Spring Data")
+    Component(device_registry, "@Repository DeviceRegistry", "Spring Data JPA", "Реестр устройств с кешированием")
+    Component(device_config_manager, "@ConfigurationProperties", "Spring Config", "Управление конфигурацией")
+    Component(device_validator, "@Validator", "Spring Validation", "Валидация с Bean Validation")
+    Component(device_repository, "JpaRepository<Device>", "Spring Data JPA", "Автоматические CRUD операции")
+    Component(event_publisher, "@EventListener Publisher", "Spring Events", "Публикация событий через ApplicationEventPublisher")
+}
+
+ContainerDb(device_db, "Device Database", "PostgreSQL", "Хранение метаданных устройств")
+Container(redis_cache, "Redis Cache", "Redis", "Кэширование состояний устройств")
+ContainerQueue(message_broker, "Message Broker", "Apache Kafka", "Публикация событий")
+System_Ext(iot_devices, "IoT Устройства", "Физические устройства")
+
+' Внешние взаимодействия
+Rel(device_api, device_command_handler, "Передает команды", "Sync")
+Rel(device_api, device_registry, "Получает список устройств", "Sync")
+Rel(device_api, device_config_manager, "Управляет конфигурацией", "Sync")
+
+' Внутренние взаимодействия
+Rel(device_command_handler, device_validator, "Валидирует команды", "Sync")
+Rel(device_command_handler, device_state_manager, "Обновляет состояние", "Sync")
+Rel(device_command_handler, event_publisher, "Публикует события", "Async")
+
+Rel(device_state_manager, device_repository, "Сохраняет состояние", "Sync")
+Rel(device_state_manager, redis_cache, "Кэширует состояние", "Sync")
+
+Rel(device_registry, device_repository, "Загружает устройства", "Sync")
+Rel(device_config_manager, device_repository, "Управляет конфигурацией", "Sync")
+
+' Подключения к внешним системам
+Rel(device_repository, device_db, "Читает/записывает", "SQL")
+Rel(event_publisher, message_broker, "Публикует события", "Kafka")
+Rel(device_command_handler, iot_devices, "Отправляет команды", "MQTT/CoAP")
+
+SHOW_LEGEND()
+@enduml

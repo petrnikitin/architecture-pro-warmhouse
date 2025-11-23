@@ -1,0 +1,51 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Компоненты микросервиса "Telemetry Service"
+
+Container_Boundary(telemetry_service, "Telemetry Service") {
+    Component(telemetry_api, "@RestController", "Spring WebFlux", "Реактивный REST API для телеметрии")
+    Component(data_collector, "@Component DataCollector", "Spring WebFlux", "Реактивный сбор данных с устройств")
+    Component(data_processor, "@Service Processor", "Spring Cloud Stream", "Stream processing с Kafka Streams")
+    Component(metrics_calculator, "@Component Calculator", "Spring Boot", "Расчет метрик с @Scheduled")
+    Component(alert_engine, "@Service AlertEngine", "Spring Events", "Система алертов с Rule Engine")
+    Component(data_validator, "@Validator", "Spring Validation", "Валидация с Custom Validators")
+    Component(time_series_repository, "@Repository TimeSeriesRepo", "Spring Data JPA", "Работа с временными рядами")
+    Component(event_listener, "@KafkaListener", "Spring Kafka", "Обработка событий устройств")
+}
+
+ContainerDb(telemetry_db, "Telemetry Database", "InfluxDB", "Хранение временных рядов")
+Container(redis_cache, "Redis Cache", "Redis", "Кэширование актуальных метрик")
+ContainerQueue(message_broker, "Message Broker", "Apache Kafka", "Получение событий устройств")
+System_Ext(iot_devices, "IoT Устройства", "Источники телеметрии")
+System_Ext(external_apis, "Weather API", "Внешние источники данных")
+
+' Внешние взаимодействия
+Rel(telemetry_api, metrics_calculator, "Запрашивает метрики", "Sync")
+Rel(telemetry_api, time_series_repository, "Получает исторические данные", "Sync")
+
+' Внутренние взаимодействия - поток данных
+Rel(data_collector, data_validator, "Валидирует данные", "Sync")
+Rel(data_validator, data_processor, "Передает валидные данные", "Stream")
+Rel(data_processor, metrics_calculator, "Передает обработанные данные", "Stream")
+Rel(data_processor, time_series_repository, "Сохраняет данные", "Batch")
+
+' Система алертов
+Rel(data_processor, alert_engine, "Проверяет пороги", "Stream")
+Rel(alert_engine, message_broker, "Отправляет алерты", "Async")
+
+' Обработка событий
+Rel(event_listener, data_processor, "Обрабатывает события устройств", "Event")
+
+' Кэширование
+Rel(metrics_calculator, redis_cache, "Кэширует метрики", "Sync")
+Rel(telemetry_api, redis_cache, "Читает кэш", "Sync")
+
+' Подключения к внешним системам
+Rel(time_series_repository, telemetry_db, "Читает/записывает временные ряды", "InfluxQL")
+Rel(event_listener, message_broker, "Подписывается на события", "Kafka")
+Rel(data_collector, iot_devices, "Собирает данные", "MQTT/CoAP")
+Rel(data_collector, external_apis, "Получает внешние данные", "HTTPS")
+
+SHOW_LEGEND()
+@enduml

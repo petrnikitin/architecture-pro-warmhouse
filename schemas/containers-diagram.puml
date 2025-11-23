@@ -1,0 +1,92 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров системы "Тёплый дом" (To-Be) - Микросервисная архитектура
+
+Person(user, "Пользователь", "Владелец дома, управляющий умными устройствами")
+Person(specialist, "Специалист", "Технический специалист по поддержке")
+
+System_Boundary(smartvillage, "Smart Village Ecosystem") {
+    Container(api_gateway, "API Gateway", "Kong/Nginx", "Маршрутизация запросов, аутентификация, rate limiting")
+    Container(web_app, "Web Application", "React/Angular", "Пользовательский интерфейс")
+    Container(mobile_app, "Mobile App", "React Native/Flutter", "Мобильное приложение")
+    
+    Container_Boundary(microservices, "Микросервисы") {
+        Container(user_service, "User Management Service", "Java/Spring Boot", "Управление пользователями, аутентификация, Spring Security")
+        Container(device_service, "Device Management Service", "Java/Spring Boot", "Управление устройствами, Spring WebFlux для IoT")
+        Container(telemetry_service, "Telemetry Service", "Java/Spring Boot", "Сбор телеметрии, Spring Data для временных рядов")
+        Container(heating_service, "Heating Control Service", "Java/Spring Boot", "Управление отоплением, Spring Scheduling")
+        Container(lighting_service, "Lighting Control Service", "Java/Spring Boot", "Управление освещением, Spring WebFlux")
+        Container(security_service, "Security Service", "Java/Spring Boot", "Безопасность, видеонаблюдение")
+        Container(notification_service, "Notification Service", "Java/Spring Boot", "Уведомления, Spring Cloud Stream")
+    }
+    
+    Container_Boundary(messaging, "Система сообщений") {
+        ContainerQueue(message_broker, "Message Broker", "Apache Kafka/RabbitMQ", "Асинхронная связь между сервисами")
+        Container(event_store, "Event Store", "EventStore/Apache Kafka", "Хранение событий системы")
+    }
+    
+    Container_Boundary(data_layer, "Слой данных") {
+        ContainerDb(user_db, "User Database", "PostgreSQL", "Пользователи, роли, сессии")
+        ContainerDb(device_db, "Device Database", "PostgreSQL", "Устройства, конфигурация")
+        ContainerDb(telemetry_db, "Telemetry Database", "InfluxDB/TimescaleDB", "Временные ряды телеметрии")
+        ContainerDb(heating_db, "Heating Database", "MongoDB", "Настройки отопления, сценарии")
+        ContainerDb(security_db, "Security Database", "PostgreSQL", "События безопасности, логи")
+        Container(redis, "Redis Cache", "Redis", "Кеширование данных")
+    }
+}
+
+System_Ext(iot_devices, "IoT Устройства", "Датчики температуры, реле отопления, освещения, ворот")
+System_Ext(external_apis, "Внешние API", "Weather API, третьи системы")
+
+' Взаимодействие с пользователями
+Rel(user, web_app, "Использует", "HTTPS")
+Rel(user, mobile_app, "Использует", "HTTPS")
+Rel(specialist, api_gateway, "Техническая поддержка", "HTTPS/REST")
+
+' API Gateway как точка входа
+Rel(web_app, api_gateway, "API вызовы", "HTTPS/REST")
+Rel(mobile_app, api_gateway, "API вызовы", "HTTPS/REST")
+
+' API Gateway маршрутизирует к микросервисам
+Rel(api_gateway, user_service, "Аутентификация", "HTTP/REST")
+Rel(api_gateway, device_service, "Управление устройствами", "HTTP/REST")
+Rel(api_gateway, telemetry_service, "Получение телеметрии", "HTTP/REST")
+Rel(api_gateway, heating_service, "Управление отоплением", "HTTP/REST")
+Rel(api_gateway, lighting_service, "Управление освещением", "HTTP/REST")
+Rel(api_gateway, security_service, "Безопасность", "HTTP/REST")
+
+' Взаимодействие микросервисов через брокер сообщений
+Rel(device_service, message_broker, "События устройств", "Kafka/AMQP")
+Rel(telemetry_service, message_broker, "Данные телеметрии", "Kafka/AMQP")
+Rel(heating_service, message_broker, "События отопления", "Kafka/AMQP")
+Rel(lighting_service, message_broker, "События освещения", "Kafka/AMQP")
+Rel(security_service, message_broker, "События безопасности", "Kafka/AMQP")
+Rel(notification_service, message_broker, "Подписка на события", "Kafka/AMQP")
+
+' Сохранение событий
+Rel(message_broker, event_store, "Персистентность событий", "TCP")
+
+' Подключение к базам данных
+Rel(user_service, user_db, "Чтение/запись", "SQL")
+Rel(device_service, device_db, "Чтение/запись", "SQL")
+Rel(telemetry_service, telemetry_db, "Запись временных рядов", "HTTP/SQL")
+Rel(heating_service, heating_db, "Чтение/запись", "MongoDB Protocol")
+Rel(security_service, security_db, "Чтение/запись", "SQL")
+
+' Кеширование
+Rel(user_service, redis, "Кеш сессий", "Redis Protocol")
+Rel(device_service, redis, "Кеш состояний", "Redis Protocol")
+Rel(telemetry_service, redis, "Кеш метрик", "Redis Protocol")
+
+' Взаимодействие с IoT устройствами
+Rel(telemetry_service, iot_devices, "Сбор данных", "MQTT/CoAP")
+Rel(heating_service, iot_devices, "Команды управления", "MQTT/CoAP")
+Rel(lighting_service, iot_devices, "Команды управления", "MQTT/CoAP")
+Rel(security_service, iot_devices, "Команды управления", "MQTT/CoAP")
+
+' Взаимодействие с внешними API
+Rel(telemetry_service, external_apis, "Получение данных", "HTTPS/REST")
+
+SHOW_LEGEND()
+@enduml

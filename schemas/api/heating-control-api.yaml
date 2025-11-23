@@ -1,0 +1,595 @@
+openapi: 3.0.3
+info:
+  title: Heating Control Service API
+  description: |
+    REST API для управления системой отопления умного дома.
+    Предоставляет возможности для создания расписаний, сценариев и управления отоплением.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8083/api/v1
+    description: Development server
+  - url: https://api.warmhouse.com/heating-control/v1
+    description: Production server
+
+tags:
+  - name: Schedules
+    description: Управление расписаниями отопления
+  - name: Scenarios
+    description: Управление сценариями автоматизации
+  - name: Control
+    description: Управление отоплением
+
+paths:
+  /schedules:
+    get:
+      tags:
+        - Schedules
+      summary: Получить список расписаний
+      description: Возвращает список всех расписаний отопления для дома
+      operationId: getSchedules
+      parameters:
+        - name: houseId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: roomId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    post:
+      tags:
+        - Schedules
+      summary: Создать расписание
+      description: Создает новое расписание отопления
+      operationId: createSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduleRequest'
+      responses:
+        '201':
+          description: Расписание успешно создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+  /schedules/{scheduleId}:
+    get:
+      tags:
+        - Schedules
+      summary: Получить расписание по ID
+      operationId: getScheduleById
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+
+    put:
+      tags:
+        - Schedules
+      summary: Обновить расписание
+      operationId: updateSchedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScheduleRequest'
+      responses:
+        '200':
+          description: Расписание успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+
+    delete:
+      tags:
+        - Schedules
+      summary: Удалить расписание
+      operationId: deleteSchedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Расписание успешно удалено
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+
+  /scenarios:
+    get:
+      tags:
+        - Scenarios
+      summary: Получить список сценариев
+      operationId: getScenarios
+      parameters:
+        - name: houseId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScenarioResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    post:
+      tags:
+        - Scenarios
+      summary: Создать сценарий
+      operationId: createScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScenarioRequest'
+      responses:
+        '201':
+          description: Сценарий успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+      security:
+        - bearerAuth: []
+
+  /scenarios/{scenarioId}/execute:
+    post:
+      tags:
+        - Scenarios
+      summary: Выполнить сценарий
+      description: Запускает выполнение сценария автоматизации
+      operationId: executeScenario
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Сценарий запущен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioExecutionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - bearerAuth: []
+
+  /control/temperature:
+    post:
+      tags:
+        - Control
+      summary: Установить целевую температуру
+      description: Устанавливает целевую температуру для комнаты
+      operationId: setTargetTemperature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTemperatureRequest'
+      responses:
+        '200':
+          description: Температура установлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemperatureControlResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+      security:
+        - bearerAuth: []
+
+  /control/mode:
+    post:
+      tags:
+        - Control
+      summary: Установить режим отопления
+      description: Устанавливает режим работы системы отопления
+      operationId: setHeatingMode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetModeRequest'
+      responses:
+        '200':
+          description: Режим установлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModeControlResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+      security:
+        - bearerAuth: []
+
+components:
+  schemas:
+    ScheduleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        targetTemperature:
+          type: number
+          format: float
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 - Понедельник, 6 - Воскресенье
+        startTime:
+          type: string
+          format: time
+          example: "08:00:00"
+        endTime:
+          type: string
+          format: time
+          example: "22:00:00"
+        isActive:
+          type: boolean
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateScheduleRequest:
+      type: object
+      required:
+        - houseId
+        - deviceId
+        - name
+        - targetTemperature
+        - dayOfWeek
+        - startTime
+        - endTime
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        deviceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        targetTemperature:
+          type: number
+          format: float
+          minimum: 5.0
+          maximum: 35.0
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        isActive:
+          type: boolean
+          default: true
+
+    UpdateScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        targetTemperature:
+          type: number
+          format: float
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        isActive:
+          type: boolean
+
+    ScenarioResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        triggerType:
+          type: string
+          enum: [MANUAL, SCHEDULED, SENSOR, GEOFENCE]
+        triggerConditions:
+          type: object
+        actions:
+          type: array
+          items:
+            type: object
+        isActive:
+          type: boolean
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateScenarioRequest:
+      type: object
+      required:
+        - houseId
+        - name
+        - triggerType
+        - actions
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        triggerType:
+          type: string
+          enum: [MANUAL, SCHEDULED, SENSOR, GEOFENCE]
+        triggerConditions:
+          type: object
+          example:
+            temperature: 18
+            operator: "less_than"
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              deviceId:
+                type: string
+                format: uuid
+              action:
+                type: string
+              parameters:
+                type: object
+          example:
+            - deviceId: "123e4567-e89b-12d3-a456-426614174000"
+              action: "SET_TEMPERATURE"
+              parameters:
+                temperature: 22
+
+    ScenarioExecutionResponse:
+      type: object
+      properties:
+        scenarioId:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [STARTED, EXECUTING, COMPLETED, FAILED]
+        startedAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+
+    SetTemperatureRequest:
+      type: object
+      required:
+        - roomId
+        - targetTemperature
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        targetTemperature:
+          type: number
+          format: float
+          minimum: 5.0
+          maximum: 35.0
+
+    TemperatureControlResponse:
+      type: object
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        currentTemperature:
+          type: number
+          format: float
+        targetTemperature:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [HEATING, COOLING, IDLE, REACHED]
+        updatedAt:
+          type: string
+          format: date-time
+
+    SetModeRequest:
+      type: object
+      required:
+        - houseId
+        - mode
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum: [AUTO, MANUAL, ECO, AWAY, COMFORT]
+          description: |
+            - AUTO: автоматическое управление по расписанию
+            - MANUAL: ручное управление
+            - ECO: экономичный режим
+            - AWAY: режим отсутствия
+            - COMFORT: комфортный режим
+
+    ModeControlResponse:
+      type: object
+      properties:
+        houseId:
+          type: string
+          format: uuid
+        mode:
+          type: string
+        appliedAt:
+          type: string
+          format: date-time
+        affectedDevices:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

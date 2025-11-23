@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: Device Management Service API
+  description: |
+    REST API для управления устройствами умного дома.
+    Предоставляет возможности для регистрации, конфигурации и управления IoT устройствами.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8081/api/v1
+    description: Development server
+  - url: https://api.warmhouse.com/device-management/v1
+    description: Production server
+
+tags:
+  - name: Devices
+    description: Операции с устройствами
+  - name: Device Types
+    description: Управление типами устройств
+
+paths:
+  /devices:
+    get:
+      tags:
+        - Devices
+      summary: Получить список всех устройств
+      description: Возвращает список всех устройств с фильтрацией и пагинацией
+      operationId: getDevices
+      parameters:
+        - name: houseId
+          in: query
+          description: Фильтр по ID дома
+          schema:
+            type: string
+            format: uuid
+        - name: roomId
+          in: query
+          description: Фильтр по ID комнаты
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Фильтр по статусу устройства
+          schema:
+            type: string
+            enum: [ONLINE, OFFLINE, ERROR, MAINTENANCE]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    post:
+      tags:
+        - Devices
+      summary: Зарегистрировать новое устройство
+      description: Регистрирует новое IoT устройство в системе
+      operationId: createDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeviceRequest'
+            examples:
+              heatingDevice:
+                summary: Регистрация датчика отопления
+                value:
+                  deviceTypeId: "550e8400-e29b-41d4-a716-446655440001"
+                  houseId: "550e8400-e29b-41d4-a716-446655440100"
+                  roomId: "550e8400-e29b-41d4-a716-446655440200"
+                  serialNumber: "HEAT-2025-001"
+                  name: "Датчик отопления гостиная"
+                  macAddress: "A4:CF:12:34:56:78"
+                  ipAddress: "192.168.1.101"
+      responses:
+        '201':
+          description: Устройство успешно создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+              examples:
+                success:
+                  summary: Успешная регистрация устройства
+                  value:
+                    id: "123e4567-e89b-12d3-a456-426614174000"
+                    deviceTypeId: "550e8400-e29b-41d4-a716-446655440001"
+                    houseId: "550e8400-e29b-41d4-a716-446655440100"
+                    roomId: "550e8400-e29b-41d4-a716-446655440200"
+                    serialNumber: "HEAT-2025-001"
+                    name: "Датчик отопления гостиная"
+                    macAddress: "A4:CF:12:34:56:78"
+                    ipAddress: "192.168.1.101"
+                    firmwareVersion: "1.0.0"
+                    status: "OFFLINE"
+                    connectionStatus: "DISCONNECTED"
+                    lastSeen: null
+                    batteryLevel: 100
+                    createdAt: "2025-01-18T10:00:00Z"
+                    updatedAt: "2025-01-18T10:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Устройство с таким serial_number уже существует
+          content:
+            application/json:
+              example:
+                timestamp: "2025-01-18T10:00:00Z"
+                status: 409
+                error: "Conflict"
+                message: "Device with serial number HEAT-2025-001 already exists"
+                path: "/api/v1/devices"
+      security:
+        - bearerAuth: []
+
+  /devices/{deviceId}:
+    get:
+      tags:
+        - Devices
+      summary: Получить информацию об устройстве
+      description: Возвращает детальную информацию о конкретном устройстве
+      operationId: getDeviceById
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          description: ID устройства
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    put:
+      tags:
+        - Devices
+      summary: Обновить информацию об устройстве
+      description: Обновляет конфигурацию и параметры устройства
+      operationId: updateDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeviceRequest'
+      responses:
+        '200':
+          description: Устройство успешно обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+    delete:
+      tags:
+        - Devices
+      summary: Удалить устройство
+      description: Удаляет устройство из системы
+      operationId: deleteDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Устройство успешно удалено
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - bearerAuth: []
+
+  /devices/{deviceId}/command:
+    post:
+      tags:
+        - Devices
+      summary: Отправить команду устройству
+      description: Отправляет команду управления IoT устройству
+      operationId: sendDeviceCommand
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceCommandRequest'
+            examples:
+              turnOnHeating:
+                summary: Включить отопление
+                value:
+                  action: "TURN_ON"
+                  parameters:
+                    temperature: 23.5
+                    mode: "comfort"
+              setTemperature:
+                summary: Установить температуру
+                value:
+                  action: "SET_VALUE"
+                  parameters:
+                    temperature: 21.0
+              turnOffDevice:
+                summary: Выключить устройство
+                value:
+                  action: "TURN_OFF"
+                  parameters: {}
+      responses:
+        '200':
+          description: Команда успешно отправлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandResponse'
+              examples:
+                success:
+                  summary: Команда принята и выполняется
+                  value:
+                    commandId: "cmd-123e4567-e89b-12d3-a456-426614174000"
+                    status: "EXECUTING"
+                    message: "Command is being executed"
+                    timestamp: "2025-01-18T10:05:00Z"
+                completed:
+                  summary: Команда выполнена
+                  value:
+                    commandId: "cmd-123e4567-e89b-12d3-a456-426614174000"
+                    status: "COMPLETED"
+                    message: "Device turned on successfully"
+                    timestamp: "2025-01-18T10:05:03Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              example:
+                timestamp: "2025-01-18T10:05:00Z"
+                status: 404
+                error: "Not Found"
+                message: "Device with id 123e4567-e89b-12d3-a456-426614174000 not found"
+                path: "/api/v1/devices/123e4567-e89b-12d3-a456-426614174000/command"
+        '503':
+          description: Устройство недоступно
+          content:
+            application/json:
+              example:
+                timestamp: "2025-01-18T10:05:00Z"
+                status: 503
+                error: "Service Unavailable"
+                message: "Device is offline and cannot receive commands"
+                path: "/api/v1/devices/123e4567-e89b-12d3-a456-426614174000/command"
+      security:
+        - bearerAuth: []
+
+components:
+  schemas:
+    DeviceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        deviceTypeId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+        name:
+          type: string
+        macAddress:
+          type: string
+          pattern: '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+        ipAddress:
+          type: string
+          format: ipv4
+        firmwareVersion:
+          type: string
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, ERROR, MAINTENANCE]
+        connectionStatus:
+          type: string
+          enum: [CONNECTED, DISCONNECTED, PAIRING]
+        lastSeen:
+          type: string
+          format: date-time
+        batteryLevel:
+          type: integer
+          minimum: 0
+          maximum: 100
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDeviceRequest:
+      type: object
+      required:
+        - deviceTypeId
+        - houseId
+        - serialNumber
+        - name
+      properties:
+        deviceTypeId:
+          type: string
+          format: uuid
+        houseId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        serialNumber:
+          type: string
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        macAddress:
+          type: string
+        ipAddress:
+          type: string
+
+    UpdateDeviceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        roomId:
+          type: string
+          format: uuid
+        firmwareVersion:
+          type: string
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, ERROR, MAINTENANCE]
+
+    DeviceCommandRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [TURN_ON, TURN_OFF, SET_VALUE, RESET, RESTART]
+        parameters:
+          type: object
+          additionalProperties: true
+          example:
+            temperature: 23.5
+            mode: "heating"
+
+    CommandResponse:
+      type: object
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [ACCEPTED, EXECUTING, COMPLETED, FAILED]
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DeviceListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT токен для аутентификации

@@ -1,0 +1,47 @@
+@startuml
+title Диаграмма последовательности: Обработка команды управления устройством
+
+actor "Пользователь" as User
+participant "Web App" as WebApp
+participant "API Gateway" as Gateway
+participant "Device Service" as DeviceService
+participant "Device Command Handler" as CommandHandler
+participant "Device Validator" as Validator
+participant "Device State Manager" as StateManager
+participant "Event Publisher" as EventPublisher
+participant "IoT Device" as IoTDevice
+participant "Message Broker" as Broker
+database "Device DB" as DeviceDB
+database "Redis Cache" as Redis
+
+User -> WebApp: Включить отопление в гостиной
+WebApp -> Gateway: POST /api/v1/devices/heating-living-room/command\n{"action": "turn_on", "temperature": 23}
+
+Gateway -> DeviceService: POST /devices/heating-living-room/command
+DeviceService -> CommandHandler: handleCommand(deviceId, command)
+
+CommandHandler -> Validator: validateCommand(command)
+Validator -> CommandHandler: CommandValid
+
+CommandHandler -> StateManager: updateDeviceState(deviceId, newState)
+StateManager -> DeviceDB: UPDATE device SET state='on', temperature=23
+StateManager -> Redis: SET device:heating-living-room:state "on"
+StateManager -> CommandHandler: StateUpdated
+
+CommandHandler -> IoTDevice: MQTT: {"device_id": "heating-living-room", "action": "turn_on", "temperature": 23}
+IoTDevice -> CommandHandler: MQTT ACK: {"status": "success"}
+
+CommandHandler -> EventPublisher: publishEvent(DeviceStateChanged)
+EventPublisher -> Broker: Kafka: DeviceStateChangedEvent
+CommandHandler -> DeviceService: CommandExecuted
+
+DeviceService -> Gateway: 200 OK {"status": "success", "device_id": "heating-living-room", "state": "on"}
+Gateway -> WebApp: 200 OK
+WebApp -> User: Отопление включено
+
+note over Broker
+Другие сервисы (Telemetry, Notification) 
+получают событие и могут на него реагировать
+end note
+
+@enduml
